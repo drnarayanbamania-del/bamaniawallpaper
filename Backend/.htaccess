@@ -1,0 +1,17 @@
+# Passenger Configuration for Node.js
+PassengerEnabled on
+PassengerAppEnv production
+PassengerAppRoot /home/ybtshopc/wallpaper.ybtshop.com
+PassengerStartupFile server.js
+
+# CORS Headers (Attached always, to both normal responses and preflights)
+<IfModule mod_headers.c>
+    Header always set Access-Control-Allow-Origin "*"
+    Header always set Access-Control-Allow-Methods "GET, POST, OPTIONS, PUT, DELETE, PATCH"
+    Header always set Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+</IfModule>
+
+# Intercept OPTIONS preflight requests and return 200 OK immediately
+RewriteEngine On
+RewriteCond %{REQUEST_METHOD} OPTIONS
+RewriteRule ^(.*)$ - [R=200,L]

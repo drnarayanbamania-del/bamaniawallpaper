@@ -1,0 +1,23 @@
+# Dependency directories
+Backend/node_modules/
+ybt_wallpaper/.dart_tool/
+ybt_wallpaper/.flutter-plugins-dependencies
+ybt_wallpaper/.pub-cache/
+ybt_wallpaper/.pub/
+ybt_wallpaper/build/
+
+# Local databases and uploads
+Backend/*.db
+Backend/ybt_wallpaper.db
+Backend/storage/*
+!Backend/storage/.gitkeep
+
+# IDE and OS specific
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.DS_Store
+Thumbs.db
+*.log
