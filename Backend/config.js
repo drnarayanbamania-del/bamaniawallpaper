@@ -25,7 +25,7 @@ module.exports = {
   adminPassword: 'admin_password_change_me',
 
   // App
-  appName: 'YBT Wallpaper',
+  appName: 'Bamania wall paper',
   supportEmail: 'support@yourdomain.com',
   version: '1.0.0',
 

@@ -189,7 +189,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _shareApp() async {
     await _triggerHaptic();
     await Share.share(
-      'Download YBT Wallpaper App! Access thousands of free, high-definition wallpapers custom styled for you.',
+      'Download Bamania wall paper App! Access thousands of free, high-definition wallpapers custom styled for you.',
     );
   }
 
@@ -872,7 +872,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         const Divider(height: 0, indent: 56),
                         _settingsTile(
                           icon: Icons.share_rounded,
-                          title: 'Share YBT Wallpaper App',
+                          title: 'Share Bamania wall paper App',
                           onTap: _shareApp,
                         ),
                         const Divider(height: 0, indent: 56),

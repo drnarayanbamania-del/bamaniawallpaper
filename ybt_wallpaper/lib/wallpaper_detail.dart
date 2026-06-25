@@ -127,7 +127,7 @@ class _WallpaperDetailState extends State<WallpaperDetail> {
 
         await Share.shareXFiles(
           [XFile(tempFile.path)],
-          text: 'Check out "${_activeWallpaper['title']}" on YBT Wallpaper app!',
+          text: 'Check out "${_activeWallpaper['title']}" on Bamania wall paper app!',
         );
       } else {
         _showToast('Failed to retrieve image for sharing', isError: true);
