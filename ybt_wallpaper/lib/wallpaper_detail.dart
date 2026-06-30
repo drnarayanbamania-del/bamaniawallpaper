@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -11,6 +13,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api.dart';
+import 'config.dart';
 import 'local_db.dart';
 import 'recently_viewed.dart';
 import 'wallpaper_editor.dart';
@@ -44,12 +47,16 @@ class _WallpaperDetailState extends State<WallpaperDetail> {
     super.initState();
     _activeWallpaper = widget.wallpaper;
     _initDetailData();
-    _loadBannerAd();
+    if (!kIsWeb) {
+      _loadBannerAd();
+    }
   }
 
   @override
   void dispose() {
-    _bannerAd?.dispose();
+    if (!kIsWeb) {
+      _bannerAd?.dispose();
+    }
     super.dispose();
   }
 
@@ -68,8 +75,11 @@ class _WallpaperDetailState extends State<WallpaperDetail> {
     _bannerAd!.load();
   }
 
+  bool _isDownloaded = false;
+
   void _initDetailData() {
     _checkFavourite();
+    _checkDownloaded();
     _loadSimilar();
     RecentlyViewed.addWallpaper(_activeWallpaper);
   }
@@ -78,6 +88,13 @@ class _WallpaperDetailState extends State<WallpaperDetail> {
     final fav = await LocalDb.instance.isFavourite(_activeWallpaper['id']);
     if (mounted) {
       setState(() => _isFavourite = fav);
+    }
+  }
+
+  Future<void> _checkDownloaded() async {
+    final downloaded = await LocalDb.instance.isDownloaded(_activeWallpaper['id']);
+    if (mounted) {
+      setState(() => _isDownloaded = downloaded);
     }
   }
 
@@ -334,7 +351,7 @@ class _WallpaperDetailState extends State<WallpaperDetail> {
     );
   }
 
-  Future<void> _download() async {
+  Future<void> _download({bool compress = false}) async {
     await HapticFeedback.mediumImpact();
     setState(() => _downloading = true);
 
@@ -390,16 +407,29 @@ class _WallpaperDetailState extends State<WallpaperDetail> {
 
       if (response.statusCode == 200) {
         try {
+          Uint8List bytes = response.bodyBytes;
+          if (compress) {
+            bytes = await _compressBytes(bytes);
+          }
+
           // Save to gallery
           await Gal.putImageBytes(
-            Uint8List.fromList(response.bodyBytes),
-            album: 'YBT Wallpaper',
+            bytes,
+            album: Config.downloadFolderName,
           );
+
+          // Save locally for offline access
+          final appDir = await getApplicationDocumentsDirectory();
+          final localFile = File('${appDir.path}/offline_wallpaper_${_activeWallpaper['id']}.png');
+          await localFile.writeAsBytes(bytes);
+          await LocalDb.instance.addDownload(_activeWallpaper, localFile.path);
 
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: const Text('Wallpaper saved to gallery!'),
+                content: Text(compress
+                    ? 'Wallpaper saved in compressed quality!'
+                    : 'Wallpaper saved in original quality!'),
                 backgroundColor: Theme.of(context).colorScheme.primary,
                 behavior: SnackBarBehavior.floating,
               ),
@@ -408,6 +438,7 @@ class _WallpaperDetailState extends State<WallpaperDetail> {
             // Update download counts in active view
             setState(() {
               _activeWallpaper['downloads'] = (_activeWallpaper['downloads'] ?? 0) + 1;
+              _isDownloaded = true;
             });
             DownloadTracker.addDownload(_activeWallpaper);
             widget.onDownloaded?.call();
@@ -447,6 +478,67 @@ class _WallpaperDetailState extends State<WallpaperDetail> {
     }
   }
 
+  Future<Uint8List> _compressBytes(Uint8List bytes) async {
+    try {
+      final ui.Codec codec = await ui.instantiateImageCodec(
+        bytes,
+        targetWidth: 720,
+      );
+      final ui.FrameInfo fi = await codec.getNextFrame();
+      final ui.Image image = fi.image;
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      return byteData!.buffer.asUint8List();
+    } catch (_) {
+      return bytes;
+    }
+  }
+
+  Future<void> _showQualitySelectorDialog() async {
+    final quality = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Select Download Quality',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              ListTile(
+                leading: const Icon(Icons.high_quality_rounded),
+                title: const Text('Original Quality'),
+                subtitle: const Text('Highest resolution, larger file size'),
+                trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
+                onTap: () => Navigator.pop(ctx, 'original'),
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.compress_rounded),
+                title: const Text('Compressed Quality'),
+                subtitle: const Text('Lower resolution, saves data and storage'),
+                trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
+                onTap: () => Navigator.pop(ctx, 'compressed'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (quality != null) {
+      _download(compress: quality == 'compressed');
+    }
+  }
+
   void _showToast(String message, {bool isError = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -459,12 +551,25 @@ class _WallpaperDetailState extends State<WallpaperDetail> {
     );
   }
 
-  void _openZoomPreview() {
+  void _openZoomPreview() async {
     HapticFeedback.lightImpact();
+    String? localPath;
+    if (_isDownloaded) {
+      final list = await LocalDb.instance.getDownloads();
+      final match = list.firstWhere(
+          (w) => w['id'] == _activeWallpaper['id'],
+          orElse: () => <String, dynamic>{});
+      if (match.isNotEmpty) {
+        localPath = match['local_path'];
+      }
+    }
+
+    if (!mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => FullScreenZoom(
           imageUrl: _activeWallpaper['file_url'] ?? '',
+          localPath: localPath,
           title: _activeWallpaper['title'] ?? 'Preview',
           heroTag: 'detail_hero_${_activeWallpaper['id']}',
         ),
@@ -477,6 +582,23 @@ class _WallpaperDetailState extends State<WallpaperDetail> {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => WallpaperEditor(wallpaper: _activeWallpaper),
+      ),
+    );
+  }
+
+  Widget _buildNetworkImage() {
+    return CachedNetworkImage(
+      imageUrl: _activeWallpaper['file_url'] ?? '',
+      fit: BoxFit.cover,
+      width: double.infinity,
+      placeholder: (ctx, url) => Center(
+        child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary),
+      ),
+      errorWidget: (ctx, url, err) => Container(
+        color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+        child: const Center(
+          child: Icon(Icons.broken_image_rounded, size: 48),
+        ),
       ),
     );
   }
@@ -501,20 +623,29 @@ class _WallpaperDetailState extends State<WallpaperDetail> {
                     child: ClipRRect(
                       borderRadius:
                           const BorderRadius.vertical(top: Radius.circular(24)),
-                      child: CachedNetworkImage(
-                        imageUrl: _activeWallpaper['file_url'] ?? '',
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        placeholder: (ctx, url) => Center(
-                          child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary),
-                        ),
-                        errorWidget: (ctx, url, err) => Container(
-                          color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
-                          child: const Center(
-                            child: Icon(Icons.broken_image_rounded, size: 48),
-                          ),
-                        ),
-                      ),
+                      child: _isDownloaded
+                          ? FutureBuilder<List<Map<String, dynamic>>>(
+                              future: LocalDb.instance.getDownloads(),
+                              builder: (context, snapshot) {
+                                if (snapshot.hasData) {
+                                  final match = snapshot.data!.firstWhere(
+                                      (w) => w['id'] == _activeWallpaper['id'],
+                                      orElse: () => <String, dynamic>{});
+                                  if (match.isNotEmpty && match['local_path'] != null) {
+                                    final file = File(match['local_path']);
+                                    if (file.existsSync()) {
+                                      return Image.file(
+                                        file,
+                                        fit: BoxFit.cover,
+                                        width: double.infinity,
+                                      );
+                                    }
+                                  }
+                                }
+                                return _buildNetworkImage();
+                              },
+                            )
+                          : _buildNetworkImage(),
                     ),
                   ),
                 ),
@@ -703,7 +834,7 @@ class _WallpaperDetailState extends State<WallpaperDetail> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: _downloading ? null : _download,
+                    onPressed: _downloading ? null : _showQualitySelectorDialog,
                     icon: _downloading
                         ? const SizedBox(
                             width: 18,
@@ -779,18 +910,21 @@ class _WallpaperDetailState extends State<WallpaperDetail> {
 
 class FullScreenZoom extends StatelessWidget {
   final String imageUrl;
+  final String? localPath;
   final String title;
   final String heroTag;
 
   const FullScreenZoom({
     super.key,
     required this.imageUrl,
+    this.localPath,
     required this.title,
     required this.heroTag,
   });
 
   @override
   Widget build(BuildContext context) {
+    final hasLocal = localPath != null && File(localPath!).existsSync();
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -807,19 +941,26 @@ class FullScreenZoom extends StatelessWidget {
         child: Hero(
           tag: heroTag,
           child: InteractiveViewer(
-            minScale: 0.5,
+            minScale: 1.0,
             maxScale: 4.0,
-            child: CachedNetworkImage(
-              imageUrl: imageUrl,
-              fit: BoxFit.contain,
-              width: double.infinity,
-              height: double.infinity,
-              placeholder: (ctx, url) => Center(
-                child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary),
-              ),
-              errorWidget: (ctx, url, err) =>
-                  const Icon(Icons.broken_image_rounded, color: Colors.white70, size: 48),
-            ),
+            child: hasLocal
+                ? Image.file(
+                    File(localPath!),
+                    fit: BoxFit.contain,
+                    width: double.infinity,
+                    height: double.infinity,
+                  )
+                : CachedNetworkImage(
+                    imageUrl: imageUrl,
+                    fit: BoxFit.contain,
+                    width: double.infinity,
+                    height: double.infinity,
+                    placeholder: (ctx, url) => Center(
+                      child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary),
+                    ),
+                    errorWidget: (ctx, url, err) =>
+                        const Icon(Icons.broken_image_rounded, color: Colors.white70, size: 48),
+                  ),
           ),
         ),
       ),

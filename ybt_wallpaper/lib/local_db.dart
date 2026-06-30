@@ -22,8 +22,9 @@ class LocalDb {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
   }
 
@@ -47,6 +48,33 @@ class LocalDb {
         timestamp INTEGER
       )
     ''');
+
+    // Downloads table
+    await db.execute('''
+      CREATE TABLE downloads(
+        id INTEGER PRIMARY KEY,
+        title TEXT,
+        category_id INTEGER,
+        file_url TEXT,
+        local_path TEXT,
+        created_at TEXT
+      )
+    ''');
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS downloads(
+          id INTEGER PRIMARY KEY,
+          title TEXT,
+          category_id INTEGER,
+          file_url TEXT,
+          local_path TEXT,
+          created_at TEXT
+        )
+      ''');
+    }
   }
 
   // ── Favourites ─────────────────────────────────────
@@ -241,5 +269,105 @@ class LocalDb {
 
     final db = await database;
     await db.delete('search_history');
+  }
+
+  // ── Downloads (Offline Storage) ──────────────────────
+  Future<void> addDownload(Map<String, dynamic> wallpaper, String localPath) async {
+    if (kIsWeb) {
+      final prefs = await SharedPreferences.getInstance();
+      final listStr = prefs.getString('web_downloads') ?? '[]';
+      final list = List<Map<String, dynamic>>.from(
+        (jsonDecode(listStr) as List).map((x) => Map<String, dynamic>.from(x))
+      );
+      
+      list.removeWhere((x) => x['id'] == wallpaper['id']);
+      list.insert(0, {
+        'id': wallpaper['id'],
+        'title': wallpaper['title'],
+        'category_id': wallpaper['category_id'],
+        'file_url': wallpaper['file_url'],
+        'local_path': localPath,
+        'created_at': wallpaper['created_at'],
+      });
+      
+      await prefs.setString('web_downloads', jsonEncode(list));
+      return;
+    }
+
+    final db = await database;
+    await db.insert(
+      'downloads',
+      {
+        'id': wallpaper['id'],
+        'title': wallpaper['title'],
+        'category_id': wallpaper['category_id'],
+        'file_url': wallpaper['file_url'],
+        'local_path': localPath,
+        'created_at': wallpaper['created_at'],
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> removeDownload(int id) async {
+    if (kIsWeb) {
+      final prefs = await SharedPreferences.getInstance();
+      final listStr = prefs.getString('web_downloads') ?? '[]';
+      final list = List<Map<String, dynamic>>.from(
+        (jsonDecode(listStr) as List).map((x) => Map<String, dynamic>.from(x))
+      );
+      
+      list.removeWhere((x) => x['id'] == id);
+      await prefs.setString('web_downloads', jsonEncode(list));
+      return;
+    }
+
+    final db = await database;
+    await db.delete(
+      'downloads',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<bool> isDownloaded(int id) async {
+    if (kIsWeb) {
+      final prefs = await SharedPreferences.getInstance();
+      final listStr = prefs.getString('web_downloads') ?? '[]';
+      final list = jsonDecode(listStr) as List;
+      return list.any((x) => x['id'] == id);
+    }
+
+    final db = await database;
+    final maps = await db.query(
+      'downloads',
+      columns: ['id'],
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    return maps.isNotEmpty;
+  }
+
+  Future<List<Map<String, dynamic>>> getDownloads() async {
+    if (kIsWeb) {
+      final prefs = await SharedPreferences.getInstance();
+      final listStr = prefs.getString('web_downloads') ?? '[]';
+      final list = List<dynamic>.from(jsonDecode(listStr));
+      return list.map((x) => Map<String, dynamic>.from(x)).toList();
+    }
+
+    final db = await database;
+    return await db.query('downloads', orderBy: 'id DESC');
+  }
+
+  Future<void> clearDownloads() async {
+    if (kIsWeb) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('web_downloads');
+      return;
+    }
+
+    final db = await database;
+    await db.delete('downloads');
   }
 }

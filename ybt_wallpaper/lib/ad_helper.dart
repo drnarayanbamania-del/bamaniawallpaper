@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 /// Centralized AdMob helper using official Google test ad unit IDs.
@@ -8,6 +9,7 @@ class AdHelper {
 
   // ── Official Google AdMob Test Ad Unit IDs ──────────────────────
   static String get bannerAdUnitId {
+    if (kIsWeb) return '';
     if (Platform.isAndroid) {
       return 'ca-app-pub-3940256099942544/6300978111';
     } else if (Platform.isIOS) {
@@ -17,6 +19,7 @@ class AdHelper {
   }
 
   static String get interstitialAdUnitId {
+    if (kIsWeb) return '';
     if (Platform.isAndroid) {
       return 'ca-app-pub-3940256099942544/1033173712';
     } else if (Platform.isIOS) {
@@ -35,6 +38,7 @@ class AdHelper {
 
   /// Initialize the Mobile Ads SDK and start tracking active usage.
   static Future<void> initialize() async {
+    if (kIsWeb) return;
     await MobileAds.instance.initialize();
     _loadInterstitialAd();
     _startUsageTracking();

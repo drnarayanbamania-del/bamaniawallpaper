@@ -144,7 +144,21 @@ class Api {
         .replace(queryParameters: params);
 
     final response = await http.get(uri, headers: await _headers());
-    return _handleResponse(response);
+    final data = await _handleResponse(response);
+
+    // Apply Safe Search filter on frontend if enabled
+    final prefs = await SharedPreferences.getInstance();
+    final isSafe = prefs.getBool('safe_search') ?? false;
+    if (isSafe && data['wallpapers'] != null) {
+      final wallpapers = data['wallpapers'] as List;
+      final nsfwKeywords = ['nsfw', '18+', 'adult', 'sexy', 'nude', 'bikini', 'erotic', 'hot girl'];
+      data['wallpapers'] = wallpapers.where((w) {
+        final title = (w['title'] ?? '').toString().toLowerCase();
+        return !nsfwKeywords.any((kw) => title.contains(kw));
+      }).toList();
+    }
+
+    return data;
   }
 
   static Future<Map<String, dynamic>> getWallpaper(int id) async {

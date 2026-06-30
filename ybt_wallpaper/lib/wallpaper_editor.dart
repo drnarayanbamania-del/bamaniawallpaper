@@ -7,6 +7,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:gal/gal.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'config.dart';
 
 
 class WallpaperEditor extends StatefulWidget {
@@ -24,7 +25,9 @@ class _WallpaperEditorState extends State<WallpaperEditor> {
 
   double _blur = 0.0;
   double _brightness = 0.0; // -0.5 to 0.5
+  double _contrast = 1.0; // 0.5 to 1.5
   bool _isGrayscale = false;
+  bool _isCompressed = false;
   BoxFit _fitMode = BoxFit.cover; // cover=Fill, contain=Fit, none=Center
 
   bool _isProcessing = false;
@@ -48,6 +51,18 @@ class _WallpaperEditorState extends State<WallpaperEditor> {
     ];
   }
 
+  // Contrast matrix generator
+  List<double> _contrastMatrix(double value) {
+    final s = value;
+    final t = (1.0 - s) * 255 / 2;
+    return [
+      s, 0, 0, 0, t,
+      0, s, 0, 0, t,
+      0, 0, s, 0, t,
+      0, 0, 0, 1, 0,
+    ];
+  }
+
   Future<void> _triggerHaptic(HapticFeedbackType type) async {
     try {
       if (type == HapticFeedbackType.light) {
@@ -63,7 +78,8 @@ class _WallpaperEditorState extends State<WallpaperEditor> {
       RenderRepaintBoundary? boundary = _repaintKey.currentContext
           ?.findRenderObject() as RenderRepaintBoundary?;
       if (boundary == null) return null;
-      ui.Image image = await boundary.toImage(pixelRatio: 3.0);
+      double ratio = _isCompressed ? 1.0 : 3.0;
+      ui.Image image = await boundary.toImage(pixelRatio: ratio);
       ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       return byteData?.buffer.asUint8List();
     } catch (e) {
@@ -96,7 +112,7 @@ class _WallpaperEditorState extends State<WallpaperEditor> {
         return;
       }
 
-      await Gal.putImageBytes(bytes, album: 'YBT Wallpaper');
+      await Gal.putImageBytes(bytes, album: Config.downloadFolderName);
       _showSnackBar('Wallpaper saved to gallery!');
     } catch (e) {
       _showSnackBar('Error: $e', isError: true);
@@ -257,29 +273,35 @@ class _WallpaperEditorState extends State<WallpaperEditor> {
                           children: [
                             ColorFiltered(
                               colorFilter: ColorFilter.matrix(
-                                  _brightnessMatrix(_brightness)),
+                                  _contrastMatrix(_contrast)),
                               child: ColorFiltered(
-                                colorFilter: _isGrayscale
-                                    ? const ColorFilter.matrix(_grayscaleMatrix)
-                                    : const ColorFilter.mode(
-                                        Colors.transparent, BlendMode.dst),
-                                child: ImageFiltered(
-                                  imageFilter: ui.ImageFilter.blur(
-                                      sigmaX: _blur, sigmaY: _blur),
-                                  child: InteractiveViewer(
-                                    minScale: 0.5,
-                                    maxScale: 3.0,
-                                    child: CachedNetworkImage(
-                                      imageUrl: widget.wallpaper['file_url'] ?? '',
-                                      fit: _fitMode,
-                                      placeholder: (ctx, url) => Center(
-                                        child: CircularProgressIndicator(
-                                          valueColor:
-                                              AlwaysStoppedAnimation(Theme.of(context).colorScheme.primary),
+                                colorFilter: ColorFilter.matrix(
+                                    _brightnessMatrix(_brightness)),
+                                child: ColorFiltered(
+                                  colorFilter: _isGrayscale
+                                      ? const ColorFilter.matrix(_grayscaleMatrix)
+                                      : const ColorFilter.mode(
+                                          Colors.transparent, BlendMode.dst),
+                                  child: ImageFiltered(
+                                    imageFilter: ui.ImageFilter.blur(
+                                        sigmaX: _blur, sigmaY: _blur),
+                                    child: InteractiveViewer(
+                                      minScale: 0.5,
+                                      maxScale: 3.0,
+                                      child: Center(
+                                        child: CachedNetworkImage(
+                                          imageUrl: widget.wallpaper['file_url'] ?? '',
+                                          fit: _fitMode,
+                                          placeholder: (ctx, url) => Center(
+                                            child: CircularProgressIndicator(
+                                              valueColor:
+                                                  AlwaysStoppedAnimation(Theme.of(context).colorScheme.primary),
+                                            ),
+                                          ),
+                                          errorWidget: (ctx, url, err) => const Center(
+                                            child: Icon(Icons.error, color: Colors.red),
+                                          ),
                                         ),
-                                      ),
-                                      errorWidget: (ctx, url, err) => const Center(
-                                        child: Icon(Icons.error, color: Colors.red),
                                       ),
                                     ),
                                   ),
@@ -385,6 +407,29 @@ class _WallpaperEditorState extends State<WallpaperEditor> {
                         ),
                         const SizedBox(height: 8),
 
+                        // Contrast Slider
+                        Row(
+                          children: [
+                            const Icon(Icons.contrast_rounded, size: 20),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Contrast',
+                              style: TextStyle(fontWeight: FontWeight.w500),
+                            ),
+                            Expanded(
+                              child: Slider(
+                                value: _contrast,
+                                min: 0.5,
+                                max: 1.5,
+                                activeColor: Theme.of(context).colorScheme.primary,
+                                onChanged: (v) => setState(() => _contrast = v),
+                              ),
+                            ),
+                            Text('${((_contrast - 1.0) * 100).toStringAsFixed(0)}%'),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+
                         // Grayscale Toggle
                         SwitchListTile(
                           contentPadding: EdgeInsets.zero,
@@ -402,6 +447,26 @@ class _WallpaperEditorState extends State<WallpaperEditor> {
                           value: _isGrayscale,
                           activeThumbColor: Theme.of(context).colorScheme.primary,
                           onChanged: (v) => setState(() => _isGrayscale = v),
+                        ),
+                        const SizedBox(height: 8),
+
+                        // Compressed Quality Toggle
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Row(
+                            children: [
+                              Icon(Icons.compress_rounded, size: 20),
+                              SizedBox(width: 8),
+                              Text(
+                                'Compressed Quality (Save Space)',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w500, fontSize: 14),
+                              ),
+                            ],
+                          ),
+                          value: _isCompressed,
+                          activeThumbColor: Theme.of(context).colorScheme.primary,
+                          onChanged: (v) => setState(() => _isCompressed = v),
                         ),
                         const SizedBox(height: 16),
 
