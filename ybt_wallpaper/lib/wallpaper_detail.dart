@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'api.dart';
 import 'local_db.dart';
 import 'recently_viewed.dart';
@@ -137,11 +138,229 @@ class _WallpaperDetailState extends State<WallpaperDetail> {
     }
   }
 
+  void _showUpgradePrompt() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.grey[950],
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.stars_rounded, color: Colors.amber, size: 40),
+                ),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'PRO Membership Required',
+                style: TextStyle(
+                  fontSize: 20, 
+                  fontWeight: FontWeight.w800, 
+                  color: Colors.white,
+                  letterSpacing: -0.5,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'This is a premium locked wallpaper. Upgrade to PRO to unlock all premium wallpapers, high-speed downloads, and support our development!',
+                style: TextStyle(
+                  fontSize: 14, 
+                  color: Colors.white.withOpacity(0.65),
+                  height: 1.4,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 28),
+              ElevatedButton(
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  setState(() => _downloading = true);
+                  try {
+                    final res = await Api.updateMeToPro();
+                    if (res['is_pro'] == true || res['message'] != null) {
+                      _showToast('Upgraded to PRO successfully! 🎉');
+                      // Wait a brief moment then retry download
+                      Future.delayed(const Duration(milliseconds: 500), () {
+                        _download();
+                      });
+                    }
+                  } catch (e) {
+                    _showToast('Upgrade failed: $e', isError: true);
+                    setState(() => _downloading = false);
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.amber[700],
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: const Text(
+                  'Upgrade to PRO Now', 
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                ),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: () => Navigator.pop(ctx),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white.withOpacity(0.6),
+                  side: BorderSide(color: Colors.white.withOpacity(0.15)),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: const Text('Cancel'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showLimitReachedPrompt() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.grey[950],
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.block_rounded, color: Colors.redAccent, size: 40),
+                ),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'Daily Limit Reached',
+                style: TextStyle(
+                  fontSize: 20, 
+                  fontWeight: FontWeight.w800, 
+                  color: Colors.white,
+                  letterSpacing: -0.5,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Standard users are limited to 3 downloads per day. Upgrade to PRO to enjoy unlimited high-speed downloads!',
+                style: TextStyle(
+                  fontSize: 14, 
+                  color: Colors.white.withOpacity(0.65),
+                  height: 1.4,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 28),
+              ElevatedButton(
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  setState(() => _downloading = true);
+                  try {
+                    final res = await Api.updateMeToPro();
+                    if (res['is_pro'] == true || res['message'] != null) {
+                      _showToast('Upgraded to PRO successfully! 🎉');
+                      // Wait a brief moment then retry download
+                      Future.delayed(const Duration(milliseconds: 500), () {
+                        _download();
+                      });
+                    }
+                  } catch (e) {
+                    _showToast('Upgrade failed: $e', isError: true);
+                    setState(() => _downloading = false);
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.amber[700],
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: const Text(
+                  'Upgrade to PRO Now', 
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                ),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: () => Navigator.pop(ctx),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white.withOpacity(0.6),
+                  side: BorderSide(color: Colors.white.withOpacity(0.15)),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: const Text('Cancel'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _download() async {
     await HapticFeedback.mediumImpact();
     setState(() => _downloading = true);
 
     try {
+      // ── Pro Premium Wallpapers validation ────────────────
+      final isPremium = _activeWallpaper['is_premium'] == 1 || _activeWallpaper['is_premium'] == true;
+      if (isPremium) {
+        bool isPro = false;
+        try {
+          final profile = await Api.getMe();
+          isPro = profile['user']['is_pro'] == 1 || profile['user']['is_pro'] == true;
+          // Update cache
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool('cached_is_pro', isPro);
+        } catch (_) {
+          final prefs = await SharedPreferences.getInstance();
+          isPro = prefs.getBool('cached_is_pro') ?? false;
+        }
+
+        if (!isPro) {
+          setState(() => _downloading = false);
+          _showUpgradePrompt();
+          return;
+        }
+      }
+
       // Request storage permission
       if (Platform.isAndroid) {
         final status = await Permission.storage.request();
@@ -208,6 +427,13 @@ class _WallpaperDetailState extends State<WallpaperDetail> {
         throw Exception('Failed to download image');
       }
     } catch (e) {
+      final errorMsg = e.toString();
+      if (errorMsg.contains('limit reached')) {
+        setState(() => _downloading = false);
+        _showLimitReachedPrompt();
+        return;
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

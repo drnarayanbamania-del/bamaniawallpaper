@@ -126,7 +126,7 @@ router.post('/', authMiddleware, adminMiddleware, (req, res) => {
     }
 
     try {
-      const { title, category_id } = req.body;
+      const { title, category_id, is_premium } = req.body;
 
       if (!title || !category_id || !req.file) {
         if (req.file) fs.unlinkSync(req.file.path);
@@ -141,8 +141,8 @@ router.post('/', authMiddleware, adminMiddleware, (req, res) => {
       }
 
       const result = queryRun(
-        'INSERT INTO wallpapers (title, file_name, category_id, uploaded_by) VALUES (?, ?, ?, ?)',
-        [title, req.file.filename, parseInt(category_id), req.user.id]
+        'INSERT INTO wallpapers (title, file_name, category_id, uploaded_by, is_premium) VALUES (?, ?, ?, ?, ?)',
+        [title, req.file.filename, parseInt(category_id), req.user.id, parseInt(is_premium) || 0]
       );
 
       res.status(201).json({
@@ -181,7 +181,7 @@ router.delete('/:id', authMiddleware, adminMiddleware, (req, res) => {
 });
 
 // ── Download (increment count) ──────────────────────
-router.post('/:id/download', (req, res) => {
+router.post('/:id/download', authMiddleware, (req, res) => {
   try {
     const wallpaper = queryGet(
       'SELECT * FROM wallpapers WHERE id = ? AND is_active = 1',
@@ -191,6 +191,31 @@ router.post('/:id/download', (req, res) => {
     if (!wallpaper) {
       return res.status(404).json({ error: 'Wallpaper not found' });
     }
+
+    // Get current user details to check if they are Pro
+    const user = queryGet('SELECT is_pro FROM users WHERE id = ?', [req.user.id]);
+    const isUserPro = user ? !!user.is_pro : false;
+
+    // If wallpaper is premium and user is not Pro, block download!
+    if (wallpaper.is_premium && !isUserPro) {
+      return res.status(403).json({ error: 'Premium download requires PRO membership' });
+    }
+
+    // ── Enforce 24-Hour Rolling Download Limits for regular users ──
+    if (!isUserPro) {
+      const logs = queryAll(
+        "SELECT id FROM download_logs WHERE user_id = ? AND downloaded_at >= datetime('now', '-24 hours')",
+        [req.user.id]
+      );
+      if (logs.length >= 3) {
+        return res.status(403).json({
+          error: 'Daily download limit reached. Upgrade to PRO for unlimited downloads!'
+        });
+      }
+    }
+
+    // Record the download log
+    queryRun('INSERT INTO download_logs (user_id, wallpaper_id) VALUES (?, ?)', [req.user.id, wallpaper.id]);
 
     queryRun('UPDATE wallpapers SET downloads = downloads + 1 WHERE id = ?', [parseInt(req.params.id)]);
 

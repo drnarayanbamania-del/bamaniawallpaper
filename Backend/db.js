@@ -52,7 +52,8 @@ function initSchema() {
       password TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'user',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      is_active BOOLEAN DEFAULT 1
+      is_active BOOLEAN DEFAULT 1,
+      is_pro BOOLEAN DEFAULT 0
     )
   `);
 
@@ -74,25 +75,72 @@ function initSchema() {
       downloads INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       is_active BOOLEAN DEFAULT 1,
+      is_premium BOOLEAN DEFAULT 0,
       FOREIGN KEY (category_id) REFERENCES categories(id),
       FOREIGN KEY (uploaded_by) REFERENCES users(id)
     )
   `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS download_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      wallpaper_id INTEGER NOT NULL,
+      downloaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (wallpaper_id) REFERENCES wallpapers(id)
+    )
+  `);
+
+  // Run migrations dynamically for existing database files
+  try {
+    const userColumns = queryAll("PRAGMA table_info(users)");
+    if (!userColumns.some(c => c.name === 'is_pro')) {
+      db.run("ALTER TABLE users ADD COLUMN is_pro BOOLEAN DEFAULT 0");
+      console.log("Database Migration: Added 'is_pro' column to 'users' table.");
+    }
+  } catch (e) {
+    console.error("Migration error for users table:", e);
+  }
+
+  try {
+    const wpColumns = queryAll("PRAGMA table_info(wallpapers)");
+    if (!wpColumns.some(c => c.name === 'is_premium')) {
+      db.run("ALTER TABLE wallpapers ADD COLUMN is_premium BOOLEAN DEFAULT 0");
+      console.log("Database Migration: Added 'is_premium' column to 'wallpapers' table.");
+    }
+  } catch (e) {
+    console.error("Migration error for wallpapers table:", e);
+  }
 }
 
 function seedAdmin() {
-  const stmt = db.prepare('SELECT id FROM users WHERE role = ?');
+  const stmt = db.prepare('SELECT id, email, password FROM users WHERE role = ?');
   stmt.bind(['admin']);
   const hasAdmin = stmt.step();
+  let adminRow = null;
+  if (hasAdmin) {
+    adminRow = stmt.getAsObject();
+  }
   stmt.free();
 
   if (!hasAdmin) {
     const hash = bcrypt.hashSync(config.adminPassword, 10);
     db.run(
       'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)',
-      ['Admin', config.adminEmail, hash, 'admin']
+      ['Admin', config.adminEmail.toLowerCase(), hash, 'admin']
     );
     console.log(`Admin account created: ${config.adminEmail}`);
+  } else {
+    const isPasswordSame = bcrypt.compareSync(config.adminPassword, adminRow.password);
+    if (adminRow.email !== config.adminEmail.toLowerCase() || !isPasswordSame) {
+      const hash = bcrypt.hashSync(config.adminPassword, 10);
+      db.run(
+        'UPDATE users SET email = ?, password = ? WHERE id = ?',
+        [config.adminEmail.toLowerCase(), hash, adminRow.id]
+      );
+      console.log(`Admin account updated in database to match config: ${config.adminEmail}`);
+    }
   }
 }
 

@@ -21,8 +21,8 @@ module.exports = {
   jwtExpiry: '7d',
 
   // Admin (auto-created on first run)
-  adminEmail: 'admin@yourdomain.com',
-  adminPassword: 'admin_password_change_me',
+  adminEmail: 'Admin123',
+  adminPassword: '12345',
 
   // App
   appName: 'Bamania wall paper',

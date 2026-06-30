@@ -268,6 +268,35 @@ class _CategoryScreenState extends State<CategoryScreen> {
                 child: const Icon(Icons.broken_image_rounded, size: 32),
               ),
             ),
+            // "PRO" lock badge
+            if (wallpaper['is_premium'] == 1 || wallpaper['is_premium'] == true)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.amber[700],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.lock_rounded, color: Colors.white, size: 10),
+                      SizedBox(width: 2),
+                      Text(
+                        'PRO',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             Positioned(
               bottom: 0,
               left: 0,

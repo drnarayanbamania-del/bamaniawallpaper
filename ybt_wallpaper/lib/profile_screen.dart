@@ -589,12 +589,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                           ),
                           const SizedBox(height: 14),
-                          Text(
-                            _user?['name'] ?? 'Guest User',
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                            ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                _user?['name'] ?? 'Guest User',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              if (_user?['is_pro'] == 1 || _user?['is_pro'] == true) ...[
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.amber[700],
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: const Text(
+                                    'PRO',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                           const SizedBox(height: 4),
                           Text(
@@ -621,6 +644,123 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ],
                   ),
                   const SizedBox(height: 20),
+
+                  // PRO Membership Card
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: (_user?['is_pro'] == 1 || _user?['is_pro'] == true)
+                          ? LinearGradient(
+                              colors: [Colors.blueGrey[900]!, Colors.blueGrey[700]!],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            )
+                          : LinearGradient(
+                              colors: [Colors.amber[800]!, Colors.orange[600]!],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: (_user?['is_pro'] == 1 || _user?['is_pro'] == true)
+                              ? Colors.black.withOpacity(0.15)
+                              : Colors.orange.withOpacity(0.25),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: (_user?['is_pro'] == 1 || _user?['is_pro'] == true)
+                                      ? Colors.amber.withOpacity(0.2)
+                                      : Colors.white.withOpacity(0.2),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.stars_rounded, 
+                                  color: (_user?['is_pro'] == 1 || _user?['is_pro'] == true) ? Colors.amber[400] : Colors.white,
+                                  size: 28,
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      (_user?['is_pro'] == 1 || _user?['is_pro'] == true) ? 'PRO Membership Active' : 'Upgrade to PRO',
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      (_user?['is_pro'] == 1 || _user?['is_pro'] == true)
+                                          ? 'Enjoy unlimited premium wallpaper downloads.'
+                                          : 'Unlock high quality premium locked content.',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: (_user?['is_pro'] == 1 || _user?['is_pro'] == true)
+                                            ? Colors.white.withOpacity(0.7)
+                                            : Colors.white.withOpacity(0.85),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (!(_user?['is_pro'] == 1 || _user?['is_pro'] == true)) ...[
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: () async {
+                                await _triggerHaptic();
+                                setState(() => _loading = true);
+                                try {
+                                  final res = await Api.updateMeToPro();
+                                  if (res['is_pro'] == true || res['message'] != null) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Congratulations! You are now a PRO member.'),
+                                        backgroundColor: Colors.amber,
+                                      ),
+                                    );
+                                  }
+                                } catch (e) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Upgrade failed: $e')),
+                                  );
+                                }
+                                await _loadProfileData();
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                foregroundColor: Colors.orange[800],
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                              ),
+                              child: const Text('Get PRO Features - Upgrade Now', style: TextStyle(fontWeight: FontWeight.w800)),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
 
                   // Session Downloads list
                   if (DownloadTracker.sessionDownloads.isNotEmpty) ...[

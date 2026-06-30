@@ -44,7 +44,7 @@ router.post('/register', (req, res) => {
     res.status(201).json({
       message: 'Registration successful',
       token,
-      user: { id: result.lastInsertRowid, name, email, role: 'user' },
+      user: { id: result.lastInsertRowid, name, email, role: 'user', is_pro: 0 },
     });
   } catch (err) {
     console.error('Register error:', err);
@@ -80,7 +80,7 @@ router.post('/login', (req, res) => {
     res.json({
       message: 'Login successful',
       token,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role },
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, is_pro: user.is_pro },
     });
   } catch (err) {
     console.error('Login error:', err);
@@ -92,7 +92,7 @@ router.post('/login', (req, res) => {
 router.get('/me', authMiddleware, (req, res) => {
   try {
     const user = queryGet(
-      'SELECT id, name, email, role, created_at, is_active FROM users WHERE id = ?',
+      'SELECT id, name, email, role, created_at, is_active, is_pro FROM users WHERE id = ?',
       [req.user.id]
     );
 
@@ -103,6 +103,17 @@ router.get('/me', authMiddleware, (req, res) => {
     res.json({ user });
   } catch (err) {
     console.error('Me error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── Upgrade Current User to Pro ──────────────────────
+router.post('/me/upgrade', authMiddleware, (req, res) => {
+  try {
+    queryRun('UPDATE users SET is_pro = 1 WHERE id = ?', [req.user.id]);
+    res.json({ message: 'Upgraded to Pro successfully', is_pro: true });
+  } catch (err) {
+    console.error('Upgrade to Pro error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

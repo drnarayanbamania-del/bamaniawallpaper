@@ -19,6 +19,8 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _scrollController = ScrollController();
+  late final PageController _pageController;
+  double _carouselCurrentPage = 0.0;
 
   List<dynamic> _allWallpapers = [];
   List<dynamic> _featuredWallpapers = [];
@@ -34,12 +36,21 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _pageController = PageController(viewportFraction: 0.85);
+    _pageController.addListener(() {
+      if (mounted) {
+        setState(() {
+          _carouselCurrentPage = _pageController.page ?? 0.0;
+        });
+      }
+    });
     _loadAllData();
     _scrollController.addListener(_scrollListener);
   }
 
   @override
   void dispose() {
+    _pageController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -249,73 +260,119 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
 
-                    // Featured Banner (horizontal list)
+                    // Featured Banner (animated PageView carousel)
                     if (_featuredWallpapers.isNotEmpty) ...[
                       const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
                         child: Text(
-                          'Featured Wallpapers',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          'Editor\'s Choice',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: -0.2),
                         ),
                       ),
                       SizedBox(
-                        height: 180,
-                        child: ListView.builder(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          scrollDirection: Axis.horizontal,
+                        height: 200,
+                        child: PageView.builder(
+                          controller: _pageController,
                           itemCount: _featuredWallpapers.length,
                           itemBuilder: (ctx, i) {
                             final w = _featuredWallpapers[i];
-                            return GestureDetector(
-                              onTap: () => _showWallpaperDetail(w),
-                              onLongPress: () => _showLongPressPreview(w),
-                              child: Container(
-                                width: 280,
-                                margin: const EdgeInsets.only(right: 12),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
-                                  ),
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: Stack(
-                                    fit: StackFit.expand,
-                                    children: [
-                                      CachedNetworkImage(
-                                        imageUrl: w['file_url'] ?? '',
-                                        fit: BoxFit.cover,
-                                        placeholder: (ctx, url) => Shimmer.fromColors(
-                                          baseColor: Theme.of(context).colorScheme.outline.withOpacity(0.3),
-                                          highlightColor: Theme.of(context).colorScheme.outline.withOpacity(0.1),
-                                          child: Container(color: Colors.white),
-                                        ),
-                                      ),
-                                      Positioned(
-                                        bottom: 0,
-                                        left: 0,
-                                        right: 0,
-                                        child: Container(
-                                          padding: const EdgeInsets.fromLTRB(12, 30, 12, 12),
-                                          decoration: const BoxDecoration(
-                                            gradient: LinearGradient(
-                                              begin: Alignment.topCenter,
-                                              end: Alignment.bottomCenter,
-                                              colors: [Colors.transparent, Colors.black87],
-                                            ),
-                                          ),
-                                          child: Text(
-                                            w['title'] ?? '',
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
+                            // Compute zoom-in transition math
+                            double scale = 1.0;
+                            if (_pageController.position.haveDimensions) {
+                              double value = _carouselCurrentPage - i;
+                              scale = (1 - value.abs() * 0.08).clamp(0.9, 1.0);
+                            } else {
+                              scale = i == 0 ? 1.0 : 0.92;
+                            }
+
+                            return Transform.scale(
+                              scale: scale,
+                              child: GestureDetector(
+                                onTap: () => _showWallpaperDetail(w),
+                                onLongPress: () => _showLongPressPreview(w),
+                                child: Container(
+                                  margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(20),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.12),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 4),
                                       ),
                                     ],
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(20),
+                                    child: Stack(
+                                      fit: StackFit.expand,
+                                      children: [
+                                        CachedNetworkImage(
+                                          imageUrl: w['file_url'] ?? '',
+                                          fit: BoxFit.cover,
+                                          placeholder: (ctx, url) => Shimmer.fromColors(
+                                            baseColor: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                                            highlightColor: Theme.of(context).colorScheme.outline.withOpacity(0.1),
+                                            child: Container(color: Colors.white),
+                                          ),
+                                        ),
+                                        Positioned(
+                                          bottom: 0,
+                                          left: 0,
+                                          right: 0,
+                                          child: Container(
+                                            padding: const EdgeInsets.fromLTRB(16, 40, 16, 16),
+                                            decoration: const BoxDecoration(
+                                              gradient: LinearGradient(
+                                                begin: Alignment.topCenter,
+                                                end: Alignment.bottomCenter,
+                                                colors: [Colors.transparent, Colors.black87],
+                                              ),
+                                            ),
+                                            child: Row(
+                                              mainAxisAlignment: MainAxisAlignment.between,
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    w['title'] ?? '',
+                                                    style: const TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 15,
+                                                      fontWeight: FontWeight.bold,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                                if (w['is_premium'] == 1 || w['is_premium'] == true)
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.amber[700],
+                                                      borderRadius: BorderRadius.circular(8),
+                                                    ),
+                                                    child: const Row(
+                                                      mainAxisSize: MainAxisSize.min,
+                                                      children: [
+                                                        Icon(Icons.lock_rounded, color: Colors.white, size: 10),
+                                                        SizedBox(width: 2),
+                                                        Text(
+                                                          'PRO',
+                                                          style: TextStyle(
+                                                            color: Colors.white,
+                                                            fontSize: 9,
+                                                            fontWeight: FontWeight.w800,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),
@@ -323,6 +380,26 @@ class _HomeScreenState extends State<HomeScreen> {
                           },
                         ),
                       ),
+                      // Carousel Indicator
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(_featuredWallpapers.length, (idx) {
+                          bool isActive = _carouselCurrentPage.round() == idx;
+                          return AnimatedContainer(
+                            duration: const Duration(milliseconds: 300),
+                            margin: const EdgeInsets.symmetric(horizontal: 3, vertical: 4),
+                            height: 6,
+                            width: isActive ? 16 : 6,
+                            decoration: BoxDecoration(
+                              color: isActive 
+                                  ? Theme.of(context).colorScheme.primary 
+                                  : Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                          );
+                        }),
+                      ),
+                      const SizedBox(height: 10),
                     ],
 
                     // Trending Section
@@ -533,6 +610,35 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
+            // "PRO" lock badge
+            if (wallpaper['is_premium'] == 1 || wallpaper['is_premium'] == true)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.amber[700],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.lock_rounded, color: Colors.white, size: 10),
+                      SizedBox(width: 2),
+                      Text(
+                        'PRO',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             // "New" badge
             if (showNewBadge)
               Positioned(

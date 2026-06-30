@@ -119,6 +119,14 @@ class Api {
     return _handleResponse(response);
   }
 
+  static Future<Map<String, dynamic>> updateMeToPro() async {
+    final response = await http.post(
+      Uri.parse('${Config.baseUrl}/api/me/upgrade'),
+      headers: await _headers(),
+    );
+    return _handleResponse(response);
+  }
+
   // ── Wallpapers ────────────────────────────────
   static Future<Map<String, dynamic>> getWallpapers({
     int page = 1,
