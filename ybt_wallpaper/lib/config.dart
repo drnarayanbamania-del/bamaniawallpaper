@@ -3,7 +3,7 @@
 /// Switch between dev and prod by changing baseUrl only.
 class Config {
   static const String baseUrl = 'http://localhost:3000'; // change for prod (e.g. https://your-domain.com)
-  static const String appName = 'Bamania wall paper';
+  static const String appName = "Bamania's wall paper";
   static const String downloadFolderName = 'Bamania Wallpapers';
   static const String supportEmail = 'support@yourdomain.com';
   static const int paginationLimit = 20;

@@ -236,9 +236,28 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          Config.appName,
-          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 20),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.asset(
+                'assets/images/logo.png',
+                height: 32,
+                width: 32,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Icon(
+                  Icons.wallpaper_rounded,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Text(
+              Config.appName,
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 20),
+            ),
+          ],
         ),
         actions: [
           IconButton(
